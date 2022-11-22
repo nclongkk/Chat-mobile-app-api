@@ -1,0 +1,10 @@
+{
+  "error.not_registered": "Tài khoản chưa được đăng ký",
+  "error.password_does_not_match": "Mật khẩu không trùng khớp",
+  "error.not_found": "Không tìm thấy kết quả",
+  "error.server_error": "Lỗi máy chủ, vui lòng thử lại sau",
+  "error.duplicate_field_value_entered": "Dữ liệu nhập vào đã tồn tại",
+  "error.not_authorize": "Không có quyền truy cập đường dẫn này",
+  "error.can_not_change_role_of_creator": "Không thể thay đổi vai trò của người tạo nhóm",
+  "error.group_not_found": "Không thể tìm thấy bất kỳ nhóm nào"
+}

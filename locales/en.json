@@ -1,0 +1,11 @@
+{
+  "error.not_registered": "Account hasn't registered yet",
+  "error.password_does_not_match": "Password does not match",
+  "error.not_found": "Can't find any result",
+  "error.server_error": "Server failed, please try again later",
+  "error.duplicate_field_value_entered": "Value entered has existed",
+  "error.not_authorize": "Not authorize to access this route",
+  "error.can_not_change_role_of_creator": "can not change role of creator",
+  "error.group_not_found": "can not find any group",
+  "error.not_member_of_group": "Not member of group"
+}
