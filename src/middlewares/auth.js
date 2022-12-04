@@ -1,11 +1,10 @@
 const jwt = require('jsonwebtoken');
 const httpStatus = require('http-status');
 const User = require('../models/User');
-const GroupMember = require('../models/GroupMember');
 const customError = require('../utils/customError');
 
 // Protect routes
-exports.authenticate = (req, res, next) => {
+exports.authenticate = async (req, res, next) => {
   try {
     let token;
     if (
@@ -24,7 +23,9 @@ exports.authenticate = (req, res, next) => {
 
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
+    const { id } = decoded;
+    const user = await User.findById(id);
+    req.user = user;
     next();
   } catch (error) {
     return next(

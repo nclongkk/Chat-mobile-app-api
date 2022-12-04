@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const { ObjectId } = require('mongodb');
 const Message = require('../models/Message');
 const { response } = require('../utils/response');
-const GroupMember = require('../models/GroupMember');
+const Group = require('../models/Group');
 const customError = require('../utils/customError');
 
 /**
@@ -90,22 +90,52 @@ exports.readMessages = async (req, res, next) => {
  * @route   POST /api/v1/groups/:groupId/messages
  */
 exports.createMessage = async (req, res, next) => {
+  const session = await mongoose.startSession();
   try {
     const userId = req.user.id;
     const groupId = req.params.groupId;
 
     await checkGroupMember(userId, groupId);
 
-    const message = await Message.create({
-      content: req.body.content,
-      sender: userId,
-      group: groupId,
-    });
+    //create transaction
+    session.startTransaction();
+    const [message] = await Message.create(
+      [
+        {
+          content: req.body.content,
+          sender: userId,
+          group: groupId,
+          readBy: [userId],
+        },
+      ],
+      {
+        session,
+      }
+    );
+    await Group.updateOne(
+      { _id: groupId },
+      {
+        $set: {
+          lastMessage: {
+            message: message._id,
+            sender: userId,
+          },
+        },
+      },
+      {
+        session,
+      }
+    );
 
+    await session.commitTransaction();
+    session.endSession();
     await emitMessageToClient(groupId, message, 'send');
 
     return response(message, httpStatus.CREATED, res);
   } catch (error) {
+    console.log(error);
+    await session.abortTransaction();
+    session.endSession();
     return next(error);
   }
 };
@@ -162,27 +192,32 @@ exports.deleteMessage = async (req, res, next) => {
 };
 
 const checkGroupMember = async (userId, groupId) => {
-  const member = await GroupMember.findOne({
-    group: ObjectId(groupId),
-    user: ObjectId(userId),
-  });
+  const member = await Group.findOne(
+    {
+      _id: groupId,
+      'members.user': userId,
+    },
+    {
+      _id: 1,
+    }
+  );
   if (!member) {
     throw new customError('error.not_member_of_group', httpStatus.FORBIDDEN);
   }
 };
 
 const emitMessageToClient = async (groupId, message, action) => {
-  const listMembers = await GroupMember.find({
-    group: groupId,
+  const group = await Group.findOne({
+    _id: groupId,
   })
-    .select('user')
+    .select('members.user')
     .lean();
-  if (!listMembers.length) {
+  const listMemberIds = group.members.map((member) => member.user.toString());
+  if (!listMemberIds.length) {
     throw new customError('error.group_not_found', httpStatus.NOT_FOUND);
   }
 
-  listMembers.forEach((member) => {
-    memberId = String(member.user);
+  listMemberIds.forEach((memberId) => {
     _emitter.sockets.in(memberId).emit('messages', {
       message,
       action,

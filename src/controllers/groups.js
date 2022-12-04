@@ -18,16 +18,24 @@ exports.listGroups = async (req, res, next) => {
     const userId = req.user.id;
     const startIndex = (page - 1) * limit;
     const [groups, totalGroups] = await Promise.all([
-      GroupMember.find({ user: userId })
-        .populate({
-          path: 'group',
-          select: 'name',
-        })
-        .select('group -_id')
+      Group.find({
+        members: { $elemMatch: { user: userId } },
+      })
+        .sort({ 'lastMessage.sentAt': -1 })
+        .select('name image lastMessage')
         .skip(startIndex)
         .limit(limit)
-        .lean(),
-      GroupMember.countDocuments({ user: userId }),
+        .populate({
+          path: 'lastMessage.sender',
+          select: 'name avatar',
+        })
+        .populate({
+          path: 'lastMessage.message',
+          select: 'content readBy',
+        }),
+      Group.countDocuments({
+        members: { $elemMatch: { user: userId } },
+      }),
     ]);
     return response(
       { data: groups, total: totalGroups, currentPage: page },
@@ -56,14 +64,16 @@ exports.createGroup = async (req, res, next) => {
           name,
           description,
           creator: userId,
+          members: [
+            {
+              user: userId,
+              nickName: req.user.name,
+            },
+          ],
         },
       ],
       { session }
     );
-    await GroupMember.create({
-      group: newGroup[0]._id,
-      user: userId,
-    });
 
     await session.commitTransaction();
     await session.endSession();
@@ -142,7 +152,6 @@ exports.deleteGroup = async (req, res, next) => {
       { session }
     );
     if (result.deletedCount === 1) {
-      await GroupMember.deleteMany({ group: req.params.groupId }, { session });
       await Message.deleteMany({ group: req.params.groupId });
     }
     await session.commitTransaction();
@@ -162,6 +171,7 @@ exports.deleteGroup = async (req, res, next) => {
 exports.listMember = async (req, res, next) => {
   try {
     //Pagination, default page 1, limit 10
+    throw new customError('Not implemented', httpStatus.NOT_IMPLEMENTED);
     const { page, limit } = req.query;
     const startIndex = (page - 1) * limit;
     const [members, totalMembers] = await Promise.all([
@@ -194,34 +204,26 @@ exports.listMember = async (req, res, next) => {
  * @access creator
  */
 exports.addMember = async (req, res, next) => {
-  const session = await mongoose.startSession();
   try {
-    await session.startTransaction();
+    await Group.updateOne(
+      {
+        _id: req.params.groupId,
+        creator: req.user.id,
+        'members.user': { $ne: userId },
+      },
+      {
+        $inc: { totalMembers: 1 },
+        $push: {
+          members: {
+            user: req.body.memberId,
+          },
+        },
+      },
+      { session }
+    );
 
-    const member = await GroupMember.findOne({
-      group: req.params.groupId,
-      user: req.body.memberId,
-    });
-
-    if (!member) {
-      const result = await Group.updateOne(
-        { _id: req.params.groupId, creator: req.user.id },
-        { $inc: { totalMembers: 1 } },
-        { session }
-      );
-      if (result.modifiedCount === 1) {
-        await GroupMember.create({
-          group: req.params.groupId,
-          user: req.body.memberId,
-        });
-      }
-    }
-    await session.commitTransaction();
-    await session.endSession();
     return response({ success: true }, httpStatus.OK, res);
   } catch (error) {
-    await session.abortTransaction();
-    await session.endSession();
     return next(error);
   }
 };
@@ -237,24 +239,22 @@ exports.editMemberInfor = async (req, res, next) => {
     let updateQuery;
     if (nickName) {
       updateQuery = {
-        $set: { notify, nickName },
+        $set: { 'members.$.notify': notify, 'members.$.nickName': nickName },
       };
     } else {
       updateQuery = {
-        $set: { notify },
-        $unset: { nickName },
+        $set: { 'members.$.nickName': notify },
+        $unset: { 'members.$.nickName': nickName },
       };
     }
-    const member = await GroupMember.findOneAndUpdate(
+
+    await Group.updateOne(
       {
-        group: req.params.groupId,
-        user: req.user.id,
+        _id: req.params.groupId,
+        creator: req.user.id,
+        'members.user': req.body.memberId,
       },
-      updateQuery,
-      {
-        new: true,
-        runValidators: true,
-      }
+      updateQuery
     );
 
     return response(member, httpStatus.OK, res);
@@ -269,32 +269,21 @@ exports.editMemberInfor = async (req, res, next) => {
  * @access creator
  */
 exports.deleteMember = async (req, res, next) => {
-  const session = await mongoose.startSession();
   try {
-    await session.startTransaction();
-
-    const result = await Group.updateOne(
+    await Group.updateOne(
       {
         _id: req.params.groupId,
         creator: req.user.id,
         totalMembers: { $gt: 0 },
       },
-      { $inc: { totalMembers: -1 } },
-      { session }
+      {
+        $inc: { totalMembers: -1 },
+        $pull: { members: { user: req.params.memberId } },
+      }
     );
-    if (result.modifiedCount === 1) {
-      await GroupMember.deleteOne({
-        group: req.params.groupId,
-        user: req.params.memberId,
-      });
-    }
 
-    await session.commitTransaction();
-    await session.endSession();
     return response({ success: true }, httpStatus.OK, res);
   } catch (error) {
-    await session.abortTransaction();
-    await session.endSession();
     return next(error);
   }
 };
