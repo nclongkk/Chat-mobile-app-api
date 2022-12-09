@@ -58,6 +58,7 @@ exports.createGroup = async (req, res, next) => {
     const userId = req.user.id;
     await session.startTransaction();
 
+    const messageId = new ObjectId();
     const newGroup = await Group.create(
       [
         {
@@ -70,9 +71,27 @@ exports.createGroup = async (req, res, next) => {
               nickName: req.user.name,
             },
           ],
+          lastMessage: {
+            message: messageId,
+            sender: userId,
+          },
         },
       ],
       { session }
+    );
+    await Message.create(
+      [
+        {
+          _id: messageId,
+          content: 'Create group',
+          sender: userId,
+          group: newGroup[0]._id,
+          readBy: [userId],
+        },
+      ],
+      {
+        session,
+      }
     );
 
     await session.commitTransaction();
@@ -205,21 +224,27 @@ exports.listMember = async (req, res, next) => {
  */
 exports.addMember = async (req, res, next) => {
   try {
+    const user = await User.findOne({
+      email: req.body.email,
+    });
+    if (!user) {
+      throw new customError('User not found', httpStatus.NOT_FOUND);
+    }
+
     await Group.updateOne(
       {
         _id: req.params.groupId,
         creator: req.user.id,
-        'members.user': { $ne: userId },
+        'members.user': { $ne: user._id },
       },
       {
         $inc: { totalMembers: 1 },
         $push: {
           members: {
-            user: req.body.memberId,
+            user: user._id,
           },
         },
-      },
-      { session }
+      }
     );
 
     return response({ success: true }, httpStatus.OK, res);

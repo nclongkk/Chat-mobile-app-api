@@ -7,6 +7,7 @@ const {
   readMessages,
   editMessage,
   deleteMessage,
+  updateListRecipient,
 } = require('../controllers/messages');
 
 const router = express.Router({ mergeParams: true });
@@ -14,7 +15,8 @@ const router = express.Router({ mergeParams: true });
 router
   .route('/')
   .get(paginate.validate(), listMessages)
-  .post(validateMsgContent.validate(), createMessage);
+  .post(validateMsgContent.validate(), createMessage)
+  .patch(updateListRecipient);
 router.patch('/readers', readMessages);
 router
   .route('/:messageId')
