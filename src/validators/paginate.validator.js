@@ -6,6 +6,7 @@ class PaginateValidator extends CoreValidator {
       query: Joi.object({
         page: Joi.number().integer().default(1),
         limit: Joi.number().integer().default(5),
+        keyword: Joi.string().default(''),
       }),
     };
     super(schema);

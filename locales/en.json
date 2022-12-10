@@ -11,5 +11,8 @@
 	"Group is not defined": "Group is not defined",
 	"{(intermediate value)}.sort is not a function": "{(intermediate value)}.sort is not a function",
 	"message is not defined": "message is not defined",
-	"Cannot read property '_id' of undefined": "Cannot read property '_id' of undefined"
+	"Cannot read property '_id' of undefined": "Cannot read property '_id' of undefined",
+	"session is not defined": "session is not defined",
+	"error.not_found_any_request": "error.not_found_any_request",
+	"Cannot access 'userId' before initialization": "Cannot access 'userId' before initialization"
 }

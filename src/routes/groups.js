@@ -12,6 +12,11 @@ const {
   addMember,
   deleteMember,
   editMemberInfor,
+  requestToJoin,
+  updateStatusJoinRequest,
+  approveJoinRequest,
+  deleteJoinRequest,
+  leaveGroup,
 } = require('../controllers/groups');
 
 const messageRouter = require('./messages');
@@ -34,5 +39,14 @@ router
   .put(validateMemberInfo.validate(), editMemberInfor);
 router.route('/:groupId/members/:memberId').delete(deleteMember);
 router.use('/:groupId/messages', messageRouter);
+router
+  .route('/:groupId/join-requests')
+  .post(requestToJoin)
+  .patch(updateStatusJoinRequest);
+router
+  .route('/:groupId/join-requests/:requesterId')
+  .post(approveJoinRequest)
+  .delete(deleteJoinRequest);
+router.post('/:groupId/leave-group', leaveGroup);
 
 module.exports = router;

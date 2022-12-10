@@ -32,6 +32,21 @@ const MemberSchema = new mongoose.Schema({
   nickName: String,
 });
 
+const JoinRequestSchema = new mongoose.Schema(
+  {
+    user: {
+      type: mongoose.Schema.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    isRead: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  { timestamps: { createdAt: true, updatedAt: false } }
+);
+
 const GroupSchema = new mongoose.Schema(
   {
     name: {
@@ -50,6 +65,7 @@ const GroupSchema = new mongoose.Schema(
     totalMembers: { type: Number, default: 1 },
     lastMessage: LastMessageSchema,
     members: [MemberSchema],
+    joinRequests: [JoinRequestSchema],
   },
   {
     timestamps: true,
@@ -57,4 +73,5 @@ const GroupSchema = new mongoose.Schema(
 );
 
 GroupSchema.index({ 'lastMessage.sentAt': -1 });
+GroupSchema.index({ name: 'text' });
 module.exports = mongoose.model('Group', GroupSchema);

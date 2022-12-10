@@ -13,16 +13,23 @@ const { response } = require('../utils/response');
  */
 exports.listGroups = async (req, res, next) => {
   try {
-    //Pagination, default page 1, limit 5
-    const { page, limit } = req.query;
     const userId = req.user.id;
+    //Pagination, default page 1, limit 5
+    const { page, limit, keyword } = req.query;
+    let where = {};
+    if (keyword) {
+      where = {
+        $or: [{ name: { $regex: keyword, $options: 'i' } }],
+      };
+    } else {
+      where = { members: { $elemMatch: { user: userId } } };
+    }
+
     const startIndex = (page - 1) * limit;
     const [groups, totalGroups] = await Promise.all([
-      Group.find({
-        members: { $elemMatch: { user: userId } },
-      })
+      Group.find(where)
         .sort({ 'lastMessage.sentAt': -1 })
-        .select('name image lastMessage')
+        .select('name image joinRequests members lastMessage')
         .skip(startIndex)
         .limit(limit)
         .populate({
@@ -33,9 +40,7 @@ exports.listGroups = async (req, res, next) => {
           path: 'lastMessage.message',
           select: 'content readBy',
         }),
-      Group.countDocuments({
-        members: { $elemMatch: { user: userId } },
-      }),
+      Group.countDocuments(where),
     ]);
     return response(
       { data: groups, total: totalGroups, currentPage: page },
@@ -305,6 +310,151 @@ exports.deleteMember = async (req, res, next) => {
         $inc: { totalMembers: -1 },
         $pull: { members: { user: req.params.memberId } },
       }
+    );
+
+    return response({ success: true }, httpStatus.OK, res);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/**
+ * @desc request to join group
+ * @route POST /api/v1/groups/:groupId/join-requests
+ */
+exports.requestToJoin = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const groupId = req.params.groupId;
+
+    const group = await Group.findOneAndUpdate(
+      {
+        _id: groupId,
+        'members.user': { $ne: userId },
+        'joinRequests.user': { $ne: userId },
+      },
+      {
+        $addToSet: { joinRequests: { user: userId } },
+      },
+      {
+        new: true,
+        select: 'name',
+      }
+    );
+    if (!group) {
+      throw new customError('error.group_not_found', httpStatus.NOT_FOUND);
+    }
+
+    return response({ success: true }, httpStatus.OK, res);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/**
+ * @desc  update list requests that creator read
+ * @route PATCH /api/v1/groups/:groupId/join-requests
+ * @access  creator
+ */
+exports.updateStatusJoinRequest = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const groupId = req.params.groupId;
+    Group.updateOne(
+      {
+        _id: groupId,
+        creator: userId,
+      },
+      { $set: { 'joinRequests.$[].isRead': true } }
+    ).catch((error) => console.log(error));
+    return response({ success: true }, httpStatus.OK, res);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/**
+ * @desc  approve join request
+ * @route POST /api/v1/groups/:groupId/join-requests/:requesterId
+ * @access  creator
+ */
+exports.approveJoinRequest = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { groupId, requesterId } = req.params;
+
+    const group = await Group.findOneAndUpdate(
+      {
+        _id: groupId,
+        creator: userId,
+        'joinRequests.user': requesterId,
+      },
+      {
+        $pull: { joinRequests: { user: requesterId } },
+        $inc: { totalMembers: 1 },
+        $addToSet: { members: { user: requesterId } },
+      },
+      { new: true, select: 'name' }
+    );
+    if (!group) {
+      throw new customError(
+        'error.not_found_any_request',
+        httpStatus.NOT_FOUND
+      );
+    }
+
+    return response({ success: true }, httpStatus.OK, res);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/**
+ * @desc  cancel join request
+ * @route DELETE /api/v1/groups/:groupId/join-requests/:requesterId
+ * @access  creator or requester
+ */
+exports.deleteJoinRequest = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { groupId, requesterId } = req.params;
+    let filterQuery;
+    if (userId === requesterId) {
+      filterQuery = { _id: groupId, 'joinRequests.user': userId };
+    } else {
+      filterQuery = {
+        _id: groupId,
+        creator: userId,
+        'joinRequests.user': requesterId,
+      };
+    }
+    await Group.updateOne(filterQuery, {
+      $pull: { joinRequests: { user: requesterId } },
+    });
+
+    return response({ success: true }, httpStatus.OK, res);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/**
+ * @desc  leave group
+ * @route POST /api/v1/groups/:groupId/leave-group
+ * @access  every member except creator
+ */
+exports.leaveGroup = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { groupId } = req.params;
+
+    await Group.updateOne(
+      {
+        _id: groupId,
+        creator: { $ne: userId },
+        totalMembers: { $gt: 0 },
+      },
+      { $inc: { totalMembers: -1 }, $pull: { members: { user: userId } } }
     );
 
     return response({ success: true }, httpStatus.OK, res);
