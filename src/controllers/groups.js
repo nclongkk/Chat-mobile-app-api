@@ -87,7 +87,7 @@ exports.createGroup = async (req, res, next) => {
       ],
       { session }
     );
-    await Message.create(
+    const message = await Message.create(
       [
         {
           _id: messageId,
@@ -104,8 +104,24 @@ exports.createGroup = async (req, res, next) => {
 
     await session.commitTransaction();
     await session.endSession();
+    const createdGroup = await Group.findOne({ _id: newGroup[0]._id })
+      .select('name image joinRequests members lastMessage')
+      .populate({
+        path: 'lastMessage.sender',
+        select: 'name avatar',
+      })
+      .populate({
+        path: 'lastMessage.message',
+        select: 'content readBy',
+      });
 
-    return response(newGroup, httpStatus.CREATED, res);
+    await emitMessageToClient(
+      groupId,
+      { message, group: createdGroup },
+      'send'
+    );
+
+    return response(createdGroup, httpStatus.CREATED, res);
   } catch (error) {
     await session.abortTransaction();
     await session.endSession();
@@ -120,9 +136,18 @@ exports.createGroup = async (req, res, next) => {
 exports.groupInformation = async (req, res, next) => {
   try {
     const groupId = req.params.groupId;
-    const group = await Group.findById(groupId).select(
-      'name description createdAt totalMembers'
-    );
+    const group = await Group.findById(groupId)
+      .select(
+        'name description createdAt totalMembers members image joinRequests creator'
+      )
+      .populate({
+        path: 'members.user',
+        select: 'name avatar isOnline',
+      })
+      .populate({
+        path: 'joinRequests.user',
+        select: 'name avatar',
+      });
     return response(group, httpStatus.OK, res);
   } catch (error) {
     return next(error);
@@ -464,4 +489,23 @@ exports.leaveGroup = async (req, res, next) => {
   } catch (error) {
     return next(error);
   }
+};
+
+const emitMessageToClient = async (groupId, message, action) => {
+  const group = await Group.findOne({
+    _id: groupId,
+  })
+    .select('members.user')
+    .lean();
+  const listMemberIds = group.members.map((member) => member.user.toString());
+  if (!listMemberIds.length) {
+    throw new customError('error.group_not_found', httpStatus.NOT_FOUND);
+  }
+
+  listMemberIds.forEach((memberId) => {
+    _emitter.sockets.in(memberId).emit('messages', {
+      message,
+      action,
+    });
+  });
 };

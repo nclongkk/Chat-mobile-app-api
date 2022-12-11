@@ -112,7 +112,7 @@ exports.createMessage = async (req, res, next) => {
         session,
       }
     );
-    await Group.updateOne(
+    const group = await Group.findOneAndUpdate(
       { _id: groupId },
       {
         $set: {
@@ -124,12 +124,21 @@ exports.createMessage = async (req, res, next) => {
       },
       {
         session,
+        new: true,
       }
-    );
+    )
+      .populate({
+        path: 'lastMessage.sender',
+        select: 'name avatar',
+      })
+      .populate({
+        path: 'lastMessage.message',
+        select: 'content readBy',
+      });
 
     await session.commitTransaction();
     session.endSession();
-    await emitMessageToClient(groupId, message, 'send');
+    await emitMessageToClient(groupId, { message, group }, 'send');
 
     return response(message, httpStatus.CREATED, res);
   } catch (error) {

@@ -13,12 +13,15 @@ exports.register = async (req, res, next) => {
   try {
     let { name, email, password } = req.body;
     // encrypt password
+    const defaultAvatar =
+      'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRD11rgdTM9nRXZsKKutRWeB5hPwoMPE1QsyQ&usqp=CAU';
     password = await encrypt(password);
     // Create user
     const newUser = await User.create({
       name,
       email,
       password,
+      avatar: defaultAvatar,
     });
     return sendTokenResponse(newUser, httpStatus.CREATED, res);
   } catch (error) {

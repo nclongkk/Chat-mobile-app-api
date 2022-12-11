@@ -15,7 +15,7 @@ $(document).ready(function () {
   $('#btnLogin').click(() => {
     const token = $('#jwt').val();
     if (!socket) {
-      socket = io.connect('http://localhost:5000', {
+      socket = io.connect('http://localhost:3000', {
         transports: ['websocket'],
         auth: { token },
       });
