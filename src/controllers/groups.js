@@ -59,6 +59,8 @@ exports.listGroups = async (req, res, next) => {
 exports.createGroup = async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
+    const defaultImage =
+      'https://static.vecteezy.com/system/resources/previews/000/581/748/non_2x/people-icon-vector-illustration.jpg';
     let { name, description } = req.body;
     const userId = req.user.id;
     await session.startTransaction();
@@ -69,6 +71,7 @@ exports.createGroup = async (req, res, next) => {
         {
           name,
           description,
+          image: defaultImage,
           creator: userId,
           members: [
             {
