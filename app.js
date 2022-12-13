@@ -41,7 +41,7 @@ app.use(express.static('src/public'));
 app.use('/api/v1', routes);
 app.get('/', (req, res) => res.render('dashboard'));
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
 const server = app.listen(PORT, console.log(`Server running on port ${PORT}`));
 const io = socketio(server);
 global._emitter = io;

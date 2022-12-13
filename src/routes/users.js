@@ -4,10 +4,14 @@ const {
   getMe,
   updateDetails,
   updatePassword,
+  getUserInfo,
 } = require('../controllers/users');
+const { authenticate } = require('../middlewares/auth');
 
 const router = express.Router();
 
+router.route('/email').get(getUserInfo);
+router.use(authenticate);
 router
   .route('/')
   .get(getMe)

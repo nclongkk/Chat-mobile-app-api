@@ -20,6 +20,21 @@ exports.getMe = async (req, res, next) => {
 };
 
 /**
+ * @desc Get user via email
+ * @route GET /api/v1/users/email
+ */
+exports.getUserInfo = async (req, res, next) => {
+  try {
+    const user = await User.findOne({ email: req.query.email })
+      .select('name email avatar phone')
+      .lean();
+    return response(user, httpStatus.OK, res);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/**
  * @desc    Modify user detail
  * @route   PUT  /api/v1/users
  */

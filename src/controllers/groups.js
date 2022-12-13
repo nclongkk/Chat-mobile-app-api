@@ -4,9 +4,13 @@ const { ObjectId } = require('mongodb');
 const User = require('../models/User');
 const Group = require('../models/Group');
 const Message = require('../models/Message');
+const Invitation = require('../models/Invitation');
 const GroupMember = require('../models/GroupMember');
 const customError = require('../utils/customError');
 const { response } = require('../utils/response');
+const sendEmail = require('../utils/sendEmail');
+const { encrypt, isMatch } = require('../utils/passwordHandle');
+
 /**
  * @desc    get list group which user joined
  * @route   GET /api/v1/groups
@@ -38,7 +42,7 @@ exports.listGroups = async (req, res, next) => {
         })
         .populate({
           path: 'lastMessage.message',
-          select: 'content readBy',
+          select: 'content readBy fileName type',
         }),
       Group.countDocuments(where),
     ]);
@@ -431,7 +435,7 @@ exports.approveJoinRequest = async (req, res, next) => {
       );
     }
 
-    return response({ success: true }, httpStatus.OK, res);
+    return response({ success: true, requesterId }, httpStatus.OK, res);
   } catch (error) {
     return next(error);
   }
@@ -460,7 +464,7 @@ exports.deleteJoinRequest = async (req, res, next) => {
       $pull: { joinRequests: { user: requesterId } },
     });
 
-    return response({ success: true }, httpStatus.OK, res);
+    return response({ success: true, requesterId }, httpStatus.OK, res);
   } catch (error) {
     return next(error);
   }
@@ -508,4 +512,58 @@ const emitMessageToClient = async (groupId, message, action) => {
       action,
     });
   });
+};
+
+exports.inviteMember = async (req, res, next) => {
+  try {
+    const { groupId } = req.params;
+    const { email } = req.body;
+    console.log(email);
+    const invitation = await Invitation.create({
+      receiver: email,
+      group: groupId,
+    });
+    const url = `${process.env.API_URL}/api/v1/groups/${groupId}/invite?invitationId=${invitation._id}`;
+    sendEmail({
+      email,
+      inviteLink: url,
+    });
+    console.log(url);
+    return response({ success: true }, httpStatus.OK, res);
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.acceptInvitation = async (req, res, next) => {
+  try {
+    const { invitationId } = req.query;
+    const invitation = await Invitation.findById(invitationId).lean();
+    if (!invitation) {
+      throw new customError('error.invitation_not_found', httpStatus.NOT_FOUND);
+    }
+
+    let user = await User.findOne({ email: invitation.receiver });
+    if (!user) {
+      const defaultAvatar =
+        'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRD11rgdTM9nRXZsKKutRWeB5hPwoMPE1QsyQ&usqp=CAU';
+      password = await encrypt(password);
+      // Create user
+      user = await User.create({
+        email,
+        password,
+        avatar: defaultAvatar,
+      });
+    }
+    await Group.updateOne(
+      {
+        _id: invitation.group,
+      },
+      {
+        $inc: { totalMembers: 1 },
+        $addToSet: { members: { user: user._id } },
+      }
+    );
+    return res.redirect(`${process.env.CLIENT_URL}/login`);
+  } catch (error) {}
 };

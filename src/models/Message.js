@@ -7,6 +7,11 @@ const MessageSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
+    type: {
+      type: String,
+      default: 'text',
+    },
+    fileName: String,
     group: {
       type: mongoose.Schema.ObjectId,
       ref: 'Group',

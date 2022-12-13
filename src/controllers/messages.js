@@ -105,6 +105,8 @@ exports.createMessage = async (req, res, next) => {
           content: req.body.content,
           sender: userId,
           group: groupId,
+          fileName: req.body.fileName,
+          type: req.body.type,
           readBy: [userId],
         },
       ],

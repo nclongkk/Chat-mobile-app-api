@@ -17,12 +17,17 @@ const {
   approveJoinRequest,
   deleteJoinRequest,
   leaveGroup,
+  inviteMember,
+  acceptInvitation,
 } = require('../controllers/groups');
+const { authenticate } = require('../middlewares/auth');
 
 const messageRouter = require('./messages');
 
 const router = express.Router();
+router.get('/:groupId/invite', acceptInvitation);
 
+router.use(authenticate);
 router
   .route('/')
   .get(paginate.validate(), listGroups)
@@ -48,5 +53,6 @@ router
   .post(approveJoinRequest)
   .delete(deleteJoinRequest);
 router.post('/:groupId/leave-group', leaveGroup);
+router.post('/:groupId/invite', inviteMember);
 
 module.exports = router;
