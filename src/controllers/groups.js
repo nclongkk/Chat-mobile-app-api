@@ -165,20 +165,11 @@ exports.groupInformation = async (req, res, next) => {
  */
 exports.updateInformation = async (req, res, next) => {
   try {
-    const { name, description } = req.body;
-
-    let updateQuery;
-    if (description) {
-      updateQuery = { $set: { name, description } };
-    } else {
-      updateQuery = {
-        $set: { name },
-        $unset: { description: 1 },
-      };
-    }
     const group = await Group.findOneAndUpdate(
       { _id: req.params.groupId, creator: req.user.id },
-      updateQuery,
+      {
+        ...req.body,
+      },
       {
         new: true,
         runValidators: true,
@@ -427,7 +418,16 @@ exports.approveJoinRequest = async (req, res, next) => {
         $addToSet: { members: { user: requesterId } },
       },
       { new: true, select: 'name' }
-    );
+    )
+      .populate({
+        path: 'members.user',
+        select: 'name avatar isOnline',
+      })
+      .populate({
+        path: 'joinRequests.user',
+        select: 'name avatar',
+      });
+
     if (!group) {
       throw new customError(
         'error.not_found_any_request',
@@ -435,7 +435,7 @@ exports.approveJoinRequest = async (req, res, next) => {
       );
     }
 
-    return response({ success: true, requesterId }, httpStatus.OK, res);
+    return response({ success: true, group }, httpStatus.OK, res);
   } catch (error) {
     return next(error);
   }
@@ -460,11 +460,18 @@ exports.deleteJoinRequest = async (req, res, next) => {
         'joinRequests.user': requesterId,
       };
     }
-    await Group.updateOne(filterQuery, {
-      $pull: { joinRequests: { user: requesterId } },
+    const newGroup = await Group.findOneAndUpdate(
+      filterQuery,
+      {
+        $pull: { joinRequests: { user: requesterId } },
+      },
+      { new: true, select: 'name' }
+    ).populate({
+      path: 'joinRequests.user',
+      select: 'name avatar',
     });
 
-    return response({ success: true, requesterId }, httpStatus.OK, res);
+    return response({ success: true, group: newGroup }, httpStatus.OK, res);
   } catch (error) {
     return next(error);
   }

@@ -27,11 +27,14 @@ const socketHandler = (io) => {
 };
 
 const emitUserStatus = (io, socket, action) => {
+  console.log('emitUserStatus', action);
   const userId = socket.user.id;
+  console.log(io.sockets.adapter.rooms);
   if (io.sockets.adapter.rooms.get(userId)) {
     return;
   }
-  const isOnline = action === "online";
+  console.log('isOnline');
+  const isOnline = action === 'online';
   User.updateOne({ _id: userId }, { $set: { isOnline } }).catch((error) => {
     console.log(error);
   });
