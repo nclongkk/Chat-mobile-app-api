@@ -1,4 +1,4 @@
-# Chat application 2021 BE internship Ecomdy
+# Chat application
 ## Installation
 
 Use npm or yarn to install
